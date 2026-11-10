@@ -1,0 +1,48 @@
+name: Gerar APK (Bolha)
+
+# Corre quando carregas em "Run workflow" (e a cada alteração). Se o repositório só tiver o .zip, descompacta-o aqui mesmo.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  apk:
+    name: APK Android
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Preparar o projeto (descompacta o .zip se for preciso)
+        run: |
+          if [ ! -f settings.gradle ]; then
+            ZIP=$(ls *.zip 2>/dev/null | head -n 1 || true)
+            if [ -z "$ZIP" ]; then echo "ERRO: nao ha settings.gradle nem ficheiro .zip no repositorio"; exit 1; fi
+            command -v unzip >/dev/null 2>&1 || (sudo apt-get update && sudo apt-get install -y unzip)
+            rm -rf _pz; mkdir _pz; unzip -q -o "$ZIP" -d _pz
+            P=$(find _pz -name settings.gradle | head -n 1)
+            if [ -z "$P" ]; then echo "ERRO: o zip nao tem settings.gradle"; exit 1; fi
+            cp -a "$(dirname "$P")"/. .
+            rm -rf _pz
+          fi
+          ls -la
+
+      - name: Preparar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Preparar o Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Preparar o Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Exportar o APK
+        run: gradle assembleDebug --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bolha-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
